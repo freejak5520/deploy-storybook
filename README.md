@@ -1,70 +1,121 @@
-# Getting Started with Create React App
+# Github pages로 스토리북 배포하기
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React프로젝트에 스토리북을 적용하고 Github pages를 이용해서 스토리북을 배포해봅시다.
 
-## Available Scripts
+>private 저장소의 경우 github pages 사용하기 위해서는 깃헙 [유로 플랜](https://docs.github.com/en/get-started/learning-about-github/githubs-plans)이 필요합니다.
 
-In the project directory, you can run:
 
-### `npm start`
+## 프로젝트 생성 및 스토리북 설치
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 리액트 프로젝트 생성
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```bash
+npx create-react-app deploy-storybook
+```
 
-### `npm test`
+### 스토리북 설치
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+npx storybook@latest init
+```
 
-### `npm run build`
+스토리북 설치 및 실행 완료 후 http://localhost:6006 로 접근 가능하고, 예제 스토리를 확인 가능합니다.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 빌드
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+아래 명령어로 스토리북을 빌드합니다.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+npm run build-storybook
+```
 
-### `npm run eject`
+빌드가 완료되면 `./storybook-static` 디렉토리에 빌드 결과를 확인할 수 있습니다.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+배포 시 빌드를 하기 위해 storybook-static 디렉토리를 .gitignore에 추가합니다.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```yml
+# .gitignore
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+storybook-static
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 워크플로우 작성
 
-## Learn More
+Github pages에 배포하기 위해서 github actions를 사용합니다.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Github  설정
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Github repository에서 action을 이용한 pages 배포를 설정합니다.
 
-### Code Splitting
+Repository - Settings - Pages 로 이동하여 Build and deployment - source를 GitHub Actions로 설정합니다.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+![](https://velog.velcdn.com/images/freejak5520/post/f7660a55-81a7-4415-9693-c32af600136b/image.png)
 
-### Analyzing the Bundle Size
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
 
-### Making a Progressive Web App
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### 워크플로우 작성
 
-### Advanced Configuration
+`.github/workflows/deploy-github-pages.yml` 파일을 생성하고 아래 처럼 작성합니다.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```yml
+# .github/workflows/deploy-github-pages.yml
 
-### Deployment
+name: Deploy storybook-static to Pages
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
 
-### `npm run build` fails to minify
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      # Build storybook
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.x"
+      - run: npm install
+      - run: npm run build-storybook
+
+      # deploy
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository
+          path: "./storybook-static"
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+워크플로우 작성 후 main 브랜치로 푸시하면 배포가 시작됩니다.
+
+배포가 완료되면 `https://<username\>.github.io/<repository\>` URL로 배포된 스토리북에 접근이 가능합니다.
+
+
+
+## 참고
+
+[https://create-react-app.dev/docs/getting-started](https://create-react-app.dev/docs/getting-started)
+[https://storybook.js.org/docs/get-started/react-webpack5](https://storybook.js.org/docs/get-started/react-webpack5)
+[https://storybook.js.org/docs/sharing/publish-storybook](https://storybook.js.org/docs/sharing/publish-storybook)
